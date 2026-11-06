@@ -25,6 +25,8 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+No Windows, depois de instalar o `uv`, basta abrir `Abrir Agente de Relatorios.bat`.
+
 ## Publicar gratuitamente no Streamlit Community Cloud
 
 1. Crie um repositório no GitHub.
@@ -41,7 +43,8 @@ são inseridas pela forma manual descrita abaixo.
 
 Há duas formas de inserir as tabelas. Nas duas, a legenda e as tabelas são
 posicionadas a partir do ponto clicado, que corresponde ao canto superior
-esquerdo do conjunto.
+esquerdo do conjunto. As tabelas são criadas como tabelas nativas do ZWCAD,
+em Calibri, e podem ser editadas diretamente no desenho.
 
 **Automática (aplicativo executado com `streamlit run app.py` no computador com
 ZWCAD):** envie também o DWG e clique em `Gerar relatórios`. O ZWCAD abre uma cópia do desenho; se aparecer o
@@ -68,6 +71,7 @@ agente_relatorios/
 ├── app.py
 ├── processor.py
 ├── cad.py
+├── Abrir Agente de Relatorios.bat
 ├── INSERIR_DESCIDAS.lsp
 ├── requirements.txt
 ├── supabase_schema.sql

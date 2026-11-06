@@ -607,6 +607,7 @@ def _build_cad_tsv(xlsx_bytes: bytes) -> bytes:
     def write_row(values: tuple[Any, ...] | list[Any]) -> None:
         fields = [
             _safe_str(value)
+            .replace("\\", "\\\\")
             .replace("\t", " ")
             .replace("\r", " ")
             .replace("\n", " ")
