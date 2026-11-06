@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import codecs
 from dataclasses import dataclass
-from io import BytesIO
+from io import BytesIO, StringIO
 import math
 from typing import Any
 
@@ -12,7 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 
@@ -20,11 +21,23 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 class ResultadoProcessamento:
     docx: bytes
     xlsx: bytes
+    cad_tsv: bytes
     total_registros: int
     total_transportadores: int
     total_comando: int
     total_ramal: int
     avisos: list[str]
+
+
+def _cad_unicode_escape(error: UnicodeError) -> tuple[str, int]:
+    escaped = "".join(
+        f"\\U+{ord(character):04X}"
+        for character in error.object[error.start:error.end]
+    )
+    return escaped, error.end
+
+
+codecs.register_error("cad_unicode", _cad_unicode_escape)
 
 
 def _is_nan(value: Any) -> bool:
@@ -310,7 +323,7 @@ def _build_docx(dataframe: pd.DataFrame) -> bytes:
             if str(label).strip().upper() == "NS" and not _is_blank(value):
                 try:
                     value = str(int(float(value)))
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):
                     value = _safe_str(value)
 
             _set_cell_text(table.cell(index, 0), label, bold=True, size_pt=10)
@@ -409,6 +422,8 @@ def _build_xlsx(
     def write_data_row(worksheet, row_number: int, values: list[Any]) -> None:
         for column_number, value in enumerate(values, start=1):
             cell = worksheet.cell(row=row_number, column=column_number, value=value)
+            if isinstance(value, str) and value.startswith("="):
+                cell.data_type = "s"
             cell.alignment = align_center if column_number == 1 else align_left
             cell.border = border_all
 
@@ -585,6 +600,54 @@ def _build_xlsx(
     return output.getvalue(), transport_count, command_count, branch_count
 
 
+def _build_cad_tsv(xlsx_bytes: bytes) -> bytes:
+    workbook = load_workbook(BytesIO(xlsx_bytes), read_only=True, data_only=True)
+    output = StringIO(newline="")
+
+    def write_row(values: tuple[Any, ...] | list[Any]) -> None:
+        fields = [
+            _safe_str(value)
+            .replace("\t", " ")
+            .replace("\r", " ")
+            .replace("\n", " ")
+            for value in values
+        ]
+        output.write("\t".join(fields) + "\n")
+
+    write_row(["#CAD_PACKAGE", "1"])
+    for sheet_name, table_id in (
+        ("TRANSPORTADORES", "TRANSPORTADORES"),
+        ("COMANDO", "COMANDO"),
+        ("RAMAL DE ALIMENTAÇÃO", "RAMAL_DE_ALIMENTACAO"),
+    ):
+        worksheet = workbook[sheet_name]
+        headers = next(
+            worksheet.iter_rows(
+                min_row=3,
+                max_row=3,
+                values_only=True,
+            ),
+        )
+        data_rows = [
+            row
+            for row in worksheet.iter_rows(
+                min_row=4,
+                values_only=True,
+            )
+            if any(not _is_blank(value) for value in row)
+        ]
+        if not data_rows:
+            continue
+
+        write_row(["#TABLE", table_id])
+        write_row(headers)
+        for row in data_rows:
+            write_row(row)
+
+    workbook.close()
+    return output.getvalue().encode("cp1252", errors="cad_unicode")
+
+
 def processar_documento(
     excel_bytes: bytes,
 ) -> ResultadoProcessamento:
@@ -596,6 +659,7 @@ def processar_documento(
     workbook_bytes, transport_count, command_count, branch_count = _build_xlsx(
         dataframe,
     )
+    cad_tsv = _build_cad_tsv(workbook_bytes)
 
     position_column = _find_col(dataframe, ["POS"])
     description_column = _find_col(dataframe, ["DESCRICAO", "DESCRIÇÃO"])
@@ -630,6 +694,7 @@ def processar_documento(
     return ResultadoProcessamento(
         docx=document_bytes,
         xlsx=workbook_bytes,
+        cad_tsv=cad_tsv,
         total_registros=len(dataframe),
         total_transportadores=transport_count,
         total_comando=command_count,

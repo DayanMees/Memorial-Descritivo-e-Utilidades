@@ -4,7 +4,9 @@ Aplicação Streamlit que recebe uma planilha XLSX e gera:
 
 - `RELATORIO_FINAL.docx`: uma página por registro;
 - `RELATORIO_DESCIDAS.xlsx`: relatório de legendas com as abas `TRANSPORTADORES`, `COMANDO` e `RAMAL DE ALIMENTAÇÃO`;
-- um ZIP contendo os dois resultados.
+- um ZIP contendo os resultados gerados;
+- o DWG com as tabelas inseridas, quando um desenho é enviado e o aplicativo roda em um computador com ZWCAD;
+- `PACOTE_DESCIDAS_ZWCAD.zip`: dados das tabelas e um comando AutoLISP para inseri-las no desenho aberto no ZWCAD.
 
 ## Segurança
 
@@ -32,6 +34,32 @@ streamlit run app.py
 5. Clique em **Deploy**.
 
 A aplicação receberá um endereço `streamlit.app` que poderá ser compartilhado.
+Nesse endereço, o aplicativo não tem acesso ao ZWCAD de quem o utiliza: as tabelas
+são inseridas pela forma manual descrita abaixo.
+
+## Inserir as tabelas no ZWCAD
+
+Há duas formas de inserir as tabelas. Nas duas, a legenda e as tabelas são
+posicionadas a partir do ponto clicado, que corresponde ao canto superior
+esquerdo do conjunto.
+
+**Automática (aplicativo executado com `streamlit run app.py` no computador com
+ZWCAD):** envie também o DWG e clique em `Gerar relatórios`. O ZWCAD abre uma cópia do desenho; se aparecer o
+aviso de referências não resolvidas, escolha ignorar e continuar. Clique no
+ponto de inserção. A altura do texto é calculada pelo tamanho do desenho, e a
+cópia é salva e fechada automaticamente, ficando disponível para download.
+Se o ZWCAD não for encontrado, defina a variável de ambiente `ZWCAD_PATH`.
+
+**Manual (aplicativo hospedado ou sem ZWCAD):** baixe
+`PACOTE_DESCIDAS_ZWCAD.zip` e extraia os arquivos. No ZWCAD, abra o DWG de
+destino, use `APPLOAD` para carregar `INSERIR_DESCIDAS.lsp` e execute o comando
+`INSERIR_DESCIDAS`. Selecione `RELATORIO_DESCIDAS_CAD.tsv`, clique no ponto de
+inserção e aceite a altura de texto sugerida ou informe outra. O botão do pacote
+aparece quando há descidas e o DWG não foi gerado automaticamente.
+
+Cada execução insere um novo conjunto; tabelas de execuções anteriores não são
+removidas. Na forma manual, salve o resultado como um novo DWG para preservar o
+desenho original.
 
 ## Estrutura
 
@@ -39,6 +67,8 @@ A aplicação receberá um endereço `streamlit.app` que poderá ser compartilha
 agente_relatorios/
 ├── app.py
 ├── processor.py
+├── cad.py
+├── INSERIR_DESCIDAS.lsp
 ├── requirements.txt
 ├── supabase_schema.sql
 ├── .gitignore
